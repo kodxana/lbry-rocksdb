@@ -15,6 +15,23 @@ Database object
                                All DB calls which modify data will raise an
                                Exception.
 
+    .. py:method:: close(safe=True)
+
+        Release live iterators and snapshots, then close the database. Retained
+        Python iterator and snapshot objects can be discarded safely afterward.
+        Repeated calls do nothing. Native close errors are reported as RocksDB
+        exceptions.
+
+        Database operations and iterator reads or seeks after closing raise
+        ``ValueError``. Snapshots from a closed database cannot be used with a
+        reopened database. Column family handles become invalid.
+
+        Stop other threads from using the database and its iterators before
+        calling ``close``; it must not race with an operation already in progress.
+        The ``safe`` argument controls waiting for background work, not access
+        from application threads. Closing does not add an fsync guarantee; use
+        ``sync=True`` on writes when durability requires it.
+
 
     .. py:method:: put(key, value, sync=False, disable_wal=False)
 
