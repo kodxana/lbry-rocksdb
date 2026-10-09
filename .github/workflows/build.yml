@@ -14,21 +14,55 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  baseline:
-    name: Linux / Python 3.9
+  wheels:
+    name: Linux / Python ${{ matrix.python }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.9', '3.13']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: true
           persist-credentials: false
       - name: Build and test the installed wheel
-        run: sh scripts/test.sh
+        env:
+          PYTHON_VERSION: ${{ matrix.python }}
+        run: sh scripts/test.sh "$PYTHON_VERSION"
       - name: Upload wheel and test results
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: linux-python39-baseline
-          path: ci-results/
+          name: linux-python${{ matrix.python }}
+          path: ci-results/python${{ matrix.python }}/
+          retention-days: 14
+
+  compatibility:
+    name: Cross-Python persistence
+    needs: wheels
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: linux-python3.9
+          path: ci-results/python3.9
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: linux-python3.13
+          path: ci-results/python3.13
+      - name: Verify databases and write batches across Python versions
+        shell: bash
+        run: sh scripts/test-compatibility.sh 2>&1 | tee ci-results/compatibility.log
+      - name: Upload compatibility log
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cross-python-persistence
+          path: ci-results/compatibility.log
           retention-days: 14

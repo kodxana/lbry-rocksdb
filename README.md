@@ -18,13 +18,15 @@ The `python-rocksdb` and `pyrocksdb` packages haven't been updated in a long tim
     python -m pip install --no-build-isolation -e .
     python -m pytest -v tests
 
-These development requirements reproduce the Python 3.9 baseline. Use a virtual
+These development requirements select the tested tools for Python 3.9 or 3.13. Use a virtual
 environment. For the isolated Linux build used in CI, install Docker and run:
 
     sh scripts/test.sh
+    sh scripts/test.sh 3.13
+    sh scripts/test-compatibility.sh
 
 See [the testing guide](docs/testing.md) for the pinned toolchain, collected tests,
-and limits of the baseline wheel.
+cross-version persistence checks, and limits of these test wheels.
 
 
 ### Quick Usage Guide
