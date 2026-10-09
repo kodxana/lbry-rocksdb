@@ -1,0 +1,27 @@
+FROM python:3.9-bullseye@sha256:5bd3c295ffab8b738108c7705052086d78b036078d5605dfc51e328ab758cc07
+
+COPY docker/test-requirements.txt /opt/test-requirements.txt
+RUN python -m pip install --no-cache-dir -r /opt/test-requirements.txt
+
+WORKDIR /opt/lbry-rocksdb
+COPY Makefile ./
+COPY src/rocksdb ./src/rocksdb
+ARG JOBS=2
+RUN make JOBS="$JOBS"
+
+COPY setup.py setup.cfg pyproject.toml MANIFEST.in README.md ./
+COPY rocksdb ./rocksdb
+RUN python -m pip wheel --no-build-isolation --no-deps --wheel-dir /wheels . \
+    && python -m pip install --no-deps /wheels/*.whl \
+    && python -m pip check
+
+# Run outside the checkout so imports exercise the installed wheel.
+WORKDIR /opt/check
+COPY tests ./tests
+COPY scripts/test-wheel.sh ./test-wheel.sh
+RUN useradd --create-home --uid 1000 tester \
+    && mkdir /results \
+    && chown -R tester:tester /results /opt/check
+USER tester
+ENV PYTHONUNBUFFERED=1
+CMD ["timeout", "--signal=TERM", "--kill-after=30", "300", "sh", "./test-wheel.sh"]

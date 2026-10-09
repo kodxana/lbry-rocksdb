@@ -1,13 +1,15 @@
 all: src/rocksdb/librocksdb.a
 
-JOBS=8
+JOBS ?= 2
+ROCKSDB_DIR := $(abspath src/rocksdb)
 
-src/rocksdb/librocksdb.a:
-	make \
+src/rocksdb/librocksdb.a: Makefile
+	$(MAKE) \
 		-e EXTRA_CXXFLAGS="-fPIC" \
 		-e EXTRA_CFLAGS="-fPIC" \
 		-C src/rocksdb \
 		-j $(JOBS) \
+		ZLIB_DOWNLOAD_BASE=https://zlib.net/fossils \
 			libsnappy.a \
 			liblz4.a \
 			libbz2.a \
@@ -21,21 +23,22 @@ src/rocksdb/librocksdb.a:
 		-DWITH_ZSTD=1 \
 		-DWITH_GFLAGS=0 \
 		-DROCKSDB_BUILD_SHARED=0 \
+		-DPORTABLE=ON \
 		-DWITH_TOOLS=0 \
 		-DWITH_BENCHMARK_TOOLS=0 \
 		-DWITH_CORE_TOOLS=0 \
 		-DWITH_JEMALLOC=0 \
 		-DCMAKE_BUILD_TYPE=Release \
-		-DSnappy_INCLUDE_DIRS=../snappy-1.1.8/ \
-		-DSnappy_LIBRARIES=../snappy-1.1.8/build \
-		-Dlz4_INCLUDE_DIRS=../lz4-1.9.3/lib \
-		-Dlz4_LIBRARIES=../lz4-1.9.3/lib \
-		-Dzstd_INCLUDE_DIRS=../zstd-1.4.9/lib \
-		-Dzstd_LIBRARIES=../zstd-1.4.9/lib \
-		-DZLIB_INCLUDE_DIR=../zlib-1.2.12 \
-		-DZLIB_LIBRARY=./zlib-1.2.12 \
+		-DSnappy_INCLUDE_DIRS=$(ROCKSDB_DIR)/snappy-1.1.8 \
+		-DSnappy_LIBRARIES=$(ROCKSDB_DIR)/libsnappy.a \
+		-Dlz4_INCLUDE_DIRS=$(ROCKSDB_DIR)/lz4-1.9.3/lib \
+		-Dlz4_LIBRARIES=$(ROCKSDB_DIR)/liblz4.a \
+		-Dzstd_INCLUDE_DIRS=$(ROCKSDB_DIR)/zstd-1.4.9/lib \
+		-Dzstd_LIBRARIES=$(ROCKSDB_DIR)/libzstd.a \
+		-DZLIB_INCLUDE_DIR=$(ROCKSDB_DIR)/zlib-1.2.12 \
+		-DZLIB_LIBRARY=$(ROCKSDB_DIR)/libz.a \
 		-DCMAKE_CXX_FLAGS="-fPIC -I../snappy-1.1.8/build -I../zstd-1.4.9/lib/dictBuilder" \
-		.. && make -j $(JOBS))
+		.. && $(MAKE) -j $(JOBS))
 
 	cp src/rocksdb/build/librocksdb.a src/rocksdb/librocksdb.a
 
