@@ -1,18 +1,26 @@
-FROM python:3.9-bullseye@sha256:5bd3c295ffab8b738108c7705052086d78b036078d5605dfc51e328ab758cc07
+ARG PYTHON_VERSION=39
+FROM python:3.9-bullseye@sha256:5bd3c295ffab8b738108c7705052086d78b036078d5605dfc51e328ab758cc07 AS python39
+FROM python:3.13-bookworm@sha256:073ffebb96ae4d0ed73ccad59f08c47bd84af8a79f5258130f8458ac50ad9ff4 AS python313
 
-COPY docker/test-requirements.txt /opt/test-requirements.txt
-RUN python -m pip install --no-cache-dir -r /opt/test-requirements.txt
-
+# Keep the native engine and compiler identical for both Python versions.
+FROM python39 AS native
+RUN python -m pip install --disable-pip-version-check --no-cache-dir cmake==3.25.2
 WORKDIR /opt/lbry-rocksdb
 COPY Makefile ./
 COPY src/rocksdb ./src/rocksdb
 ARG JOBS=2
 RUN make JOBS="$JOBS"
 
+FROM python${PYTHON_VERSION} AS test
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+COPY docker/test-requirements.txt /opt/test-requirements.txt
+RUN python -m pip install --no-cache-dir -r /opt/test-requirements.txt
+WORKDIR /opt/lbry-rocksdb
+COPY --from=native /opt/lbry-rocksdb/src/rocksdb ./src/rocksdb
 COPY setup.py setup.cfg pyproject.toml MANIFEST.in README.md ./
 COPY rocksdb ./rocksdb
-RUN python -m pip wheel --no-build-isolation --no-deps --wheel-dir /wheels . \
-    && python -m pip install --no-deps /wheels/*.whl \
+RUN --network=none python -m pip wheel --no-index --no-build-isolation --no-deps --wheel-dir /wheels . \
+    && python -m pip install --no-index --no-deps /wheels/*.whl \
     && python -m pip check
 
 # Run outside the checkout so imports exercise the installed wheel.

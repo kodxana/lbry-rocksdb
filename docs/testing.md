@@ -1,10 +1,12 @@
-# Build and test baseline
+# Build and test
 
 From a checkout with Docker available:
 
 ```sh
 git submodule update --init
 sh scripts/test.sh
+sh scripts/test.sh 3.13
+sh scripts/test-compatibility.sh
 ```
 
 On Windows, clone and run these commands with Git in WSL and a Linux Docker
@@ -12,8 +14,11 @@ daemon. A Windows Git checkout with `core.autocrlf=true` converts the submodule'
 shell scripts to CRLF, which cannot execute in Linux. No database
 server or blockchain node is needed; the tests create temporary databases.
 
-The Docker image fixes Python 3.9.23 and GCC 10 through its base-image digest.
-`docker/test-requirements.txt` pins CMake, Cython, packaging tools, and pytest.
+The Dockerfile fixes Python 3.9.23 and 3.13.16 through base-image digests.
+Both builds compile the native libraries in the Python 3.9 / GCC 10 stage. The
+binding uses GCC 10 on Python 3.9 and GCC 12 on Python 3.13.
+`docker/test-requirements.txt` pins CMake, packaging tools, and pytest, with
+Cython 0.29.37 on Python 3.9 and Cython 3.1.8 on Python 3.13.
 The RocksDB submodule remains at `752fea5d4400198bc8a591b7d795d1c8d5f12230`
 (6.25.3). Its compression-library versions and SHA-256 checks are unchanged;
 zlib 1.2.12 is fetched from the upstream HTTPS archive. This is a historical
@@ -33,17 +38,35 @@ a separate working directory. This prevents the checkout from masking missing
 files in the installed package. Pytest collects both unittest classes and the
 two function-based memtable tests that `unittest discover` misses.
 
-`ci-results/` contains the wheel, test log, JUnit report, and installed package
-versions. Set `TEST_OUTPUT_DIR` to choose another destination. A failed test
+`ci-results/python3.9/` and `ci-results/python3.13/` each contain the wheel, test
+log, JUnit report, and installed package versions. Set `TEST_OUTPUT_DIR` when
+running `test.sh` to choose another destination for that interpreter. A failed test
 returns a nonzero exit status after copying its results. The container is removed
 when the script exits.
 
-CI currently establishes Linux x86-64 / Python 3.9 behavior. The wheel is a test
-artifact, not a manylinux-audited release. macOS, Windows, other architectures,
-and newer Python versions need separate build and runtime validation. The old
+The persistence fixture writes binary keys and values, empty keys and values,
+column families, compressed SST files, WAL entries, and integer merge operands.
+It closes and reopens the database, applies a saved serialized write batch, then
+checks updates, deletes, iteration order, and merged values.
+
+After both wheel builds, `test-compatibility.sh` uses those exact wheels in fresh,
+network-isolated containers. Python 3.9 creates a database, Python 3.13 verifies
+and updates it, and Python 3.9 verifies the result. The reverse direction runs as
+well. The two directions use separate databases on a temporary Docker volume,
+removed on exit. Each step is limited to two CPUs, 2 GiB, and two minutes; CI has
+a 15-minute job timeout. For custom artifact locations, set `TEST_OUTPUT_DIR` to
+the parent containing `python3.9/` and `python3.13/` when running this script.
+
+CI establishes Linux x86-64 behavior on standard CPython 3.9 and 3.13 builds.
+The wheels are test artifacts, not manylinux-audited releases. macOS, Windows,
+other architectures, free-threaded Python, and other interpreter versions need
+separate build and runtime validation. This does not establish Python 3.13
+compatibility for the SDK or Hub and does not change their dependency pins. The old
 multi-interpreter wheel scripts remain for reference but are not the baseline
 CI path. No package is published by these workflows.
 
-The test image builds with Cython 0.29.37 and disables build isolation to use the
-pinned tools. The package's build requirements are unchanged. Other Cython and
-Python versions need their own wheel builds and runtime tests.
+The test images disable build isolation to use the pinned tools. Package build
+requirements select Cython 3.1.8 or newer on Python 3.13 and later: C++ generated
+by Cython 0.29.37 fails to compile against Python 3.13's changed C API. The older
+Python build requirement remains unchanged. CI tests the exact Cython versions
+above; it does not validate every version allowed by the package metadata.
