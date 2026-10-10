@@ -71,7 +71,7 @@ else:
     sys.exit(1)
 
 setup(
-    name="lbry-rocksdb",
+    name="lbry-rocksdb-ng",
     version=version,
     keywords=['rocksdb', 'lbry-rocksdb', 'python-rocksdb', 'leveldb', 'embedded', 'database'],
     description="Python bindings for RocksDB",
@@ -79,8 +79,18 @@ setup(
     long_description_content_type='text/markdown',
     author='Jack Robison',
     author_email="jackrobison@lbry.com",
-    url="https://github.com/lbryio/lbry-rocksdb",
+    url="https://github.com/kodxana/lbry-rocksdb",
     license='BSD License',
+    license_files=[
+        'LICENSE.md',
+        'src/rocksdb/LICENSE.Apache',
+        'src/rocksdb/LICENSE.leveldb',
+        'src/rocksdb/bzip2-1.0.8/LICENSE',
+        'src/rocksdb/lz4-1.9.3/lib/LICENSE',
+        'src/rocksdb/snappy-1.1.8/COPYING',
+        'src/rocksdb/zlib-1.2.12/README',
+        'src/rocksdb/zstd-1.4.9/LICENSE',
+    ],
     python_requires=">=3.7.0",
     package_dir={'rocksdb': 'rocksdb'},
     packages=find_packages(exclude=('tests',)),

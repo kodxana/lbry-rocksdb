@@ -1,11 +1,26 @@
-## lbry-rocksdb
+## lbry-rocksdb-ng
+
+Maintained fork of `lbry-rocksdb`. The distribution name is `lbry-rocksdb-ng`;
+the Python import remains `rocksdb`.
 
 ### Note
 The `python-rocksdb` and `pyrocksdb` packages haven't been updated in a long time - this repo is a fork of python-rocksdb with many of the PRs to it merged, and with [bunch of updates and improvements](https://github.com/iFA88/python-rocksdb) from @iFA88 and @mosquito.
 
 
-### Install from pip
-    pip install lbry-rocksdb
+### Release status
+
+Version 0.8.3 is being prepared for the first `lbry-rocksdb-ng` release.
+Until it is published, use the source build below or a tested CI wheel.
+`pip install lbry-rocksdb` still selects LBRY Inc's older package.
+
+The release wheels target Linux x86-64 with standard CPython 3.9 or 3.13.
+See [release instructions](docs/releases.md) for platform requirements and
+the GitHub release process. No PyPI publishing setup is needed.
+
+Use a fresh virtual environment when switching from `lbry-rocksdb` (or
+`python-rocksdb`): both distributions install the same `rocksdb` files and
+must not be installed together. Downstream dependencies must change to the
+new distribution name; installing it does not satisfy `lbry-rocksdb==0.8.2`.
 
 
 ### Install for development / from source

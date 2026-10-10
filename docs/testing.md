@@ -69,12 +69,22 @@ a 15-minute job timeout. For custom artifact locations, set `TEST_OUTPUT_DIR` to
 the parent containing `python3.9/` and `python3.13/` when running this script.
 
 CI establishes Linux x86-64 behavior on standard CPython 3.9 and 3.13 builds.
-The wheels are test artifacts, not manylinux-audited releases. macOS, Windows,
+Auditwheel checks and repairs the wheels before they are installed and tested.
+The platform tags are `manylinux_2_31_x86_64` for Python 3.9 and
+`manylinux_2_35_x86_64` for Python 3.13; a build that needs newer system symbols
+fails instead of receiving an incompatible tag. The audit runs under Python
+3.13 with its own pinned tools in `docker/audit-requirements.txt`. Each test
+artifact includes `wheel-audit.txt`. The installed-package tests also check
+the distribution version and bundled license notices.
+
+macOS, Windows,
 other architectures, free-threaded Python, and other interpreter versions need
 separate build and runtime validation. This does not establish Python 3.13
 compatibility for the SDK or Hub and does not change their dependency pins. The old
 multi-interpreter wheel scripts remain for reference but are not the baseline
-CI path. No package is published by these workflows.
+CI path. Normal builds and pull requests do not publish packages. The separate
+[release workflow](releases.md) creates a draft GitHub release only after the
+same wheel and cross-Python tests pass. Publication is a separate manual step.
 
 The test images disable build isolation to use the pinned tools. Package build
 requirements select Cython 3.1.8 or newer on Python 3.13 and later: C++ generated
