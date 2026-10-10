@@ -1604,6 +1604,7 @@ cdef class Options(ColumnFamilyOptions):
 
 # Forward declaration
 cdef class Snapshot
+cdef class BaseIterator
 
 cdef class KeysIterator
 cdef class ValuesIterator
@@ -1722,6 +1723,9 @@ cdef class DB(object):
     cdef list cf_handles
     cdef list cf_options
     cdef py_bool is_secondary
+    cdef object iterators
+    cdef object snapshots
+    cdef py_bool closing
 
     def __cinit__(self, db_name, Options opts, dict column_families=None, read_only=False, secondary_name=''):
         cdef Status st
@@ -1733,6 +1737,9 @@ cdef class DB(object):
         self.opts = None
         self.cf_handles = []
         self.cf_options = []
+        self.iterators = weakref.WeakSet()
+        self.snapshots = weakref.WeakSet()
+        self.closing = False
 
         if opts.in_use:
             raise Exception("Options object is already used by another DB")
@@ -1840,25 +1847,51 @@ cdef class DB(object):
         cdef ColumnFamilyOptions copts
         cdef cpp_bool c_safe = safe
         cdef Status st
-        if not self.db == NULL:
-            # We need stop backround compactions
+        cdef BaseIterator it
+        cdef Snapshot snapshot
+        cdef db.DB* native_db
+        if self.db == NULL or self.closing:
+            return
+        self.closing = True
+        try:
+            # Native iterators and snapshots must be released while the DB and
+            # its column families still exist, even if Python retains them.
+            for it in list(self.iterators):
+                it.release()
+            for snapshot in list(self.snapshots):
+                snapshot.release()
             with nogil:
                 db.CancelAllBackgroundWork(self.db, c_safe)
-            # We have to make sure we delete the handles so rocksdb doesn't
-            # assert when we delete the db
             self.cf_handles.clear()
-            for copts in self.cf_options:
-                if copts:
-                    copts.in_use = False
-            self.cf_options.clear()
-            if self.opts is not None:
-                self.opts.in_use = False
-            self.opts = None
-            with nogil:
-                self.db.Close()
-                self.db = NULL
+            native_db = self.db
+            self.db = NULL
+            try:
+                with nogil:
+                    st = native_db.Close()
+            finally:
+                with nogil:
+                    del native_db
+        finally:
+            # Keep callback objects alive until native cleanup is complete.
+            if self.db == NULL:
+                for copts in self.cf_options:
+                    if copts:
+                        copts.in_use = False
+                self.cf_options.clear()
+                if self.opts is not None:
+                    self.opts.in_use = False
+                self.opts = None
+            self.closing = False
+        # Read-only and secondary implementations clean up in the destructor.
+        if not st.IsNotSupported():
+            check_status(st)
+
+    cdef void check_open(self) except *:
+        if self.db == NULL or self.closing:
+            raise ValueError('Database is closed')
 
     def try_catch_up_with_primary(self):
+        self.check_open()
         with nogil:
             st = self.db.TryCatchUpWithPrimary()
         check_status(st)
@@ -1876,6 +1909,7 @@ cdef class DB(object):
                 return handle.weakref
 
     def put(self, key, value, sync=False, disable_wal=False):
+        self.check_open()
         cdef Status st
         cdef options.WriteOptions opts
         opts.sync = sync
@@ -1897,6 +1931,7 @@ cdef class DB(object):
         check_status(st)
 
     def delete(self, key, sync=False, disable_wal=False):
+        self.check_open()
         cdef Status st
         cdef options.WriteOptions opts
         opts.sync = sync
@@ -1917,6 +1952,7 @@ cdef class DB(object):
         check_status(st)
 
     def merge(self, key, value, sync=False, disable_wal=False):
+        self.check_open()
         cdef Status st
         cdef options.WriteOptions opts
         opts.sync = sync
@@ -1938,6 +1974,7 @@ cdef class DB(object):
         check_status(st)
 
     def write(self, WriteBatch batch, sync=False, disable_wal=False):
+        self.check_open()
         cdef Status st
         cdef options.WriteOptions opts
         opts.sync = sync
@@ -2025,6 +2062,7 @@ cdef class DB(object):
         return iterator
 
     def get(self, key, *args, **kwargs):
+        self.check_open()
         cdef string res
         cdef Status st
         cdef options.ReadOptions opts
@@ -2052,6 +2090,7 @@ cdef class DB(object):
             check_status(st)
 
     def multi_get(self, keys, *args, **kwargs):
+        self.check_open()
         # Remove duplicate keys
         keys = list(dict.fromkeys(keys))
 
@@ -2093,6 +2132,7 @@ cdef class DB(object):
         return ret_dict
 
     def key_may_exist(self, key, fetch=False, *args, **kwargs):
+        self.check_open()
         cdef string value
         cdef cpp_bool value_found
         cdef cpp_bool exists
@@ -2136,6 +2176,7 @@ cdef class DB(object):
             return (exists, None)
 
     def iterkeys(self, ColumnFamilyHandle column_family=None, *args, **kwargs):
+        self.check_open()
         cdef options.ReadOptions opts
         cdef KeysIterator it
         cdef db.ColumnFamilyHandle* cf_handle = self.db.DefaultColumnFamily()
@@ -2150,6 +2191,7 @@ cdef class DB(object):
         return it
 
     def itervalues(self, ColumnFamilyHandle column_family=None, *args, **kwargs):
+        self.check_open()
         cdef options.ReadOptions opts
         cdef ValuesIterator it
         cdef db.ColumnFamilyHandle* cf_handle = self.db.DefaultColumnFamily()
@@ -2165,6 +2207,7 @@ cdef class DB(object):
         return it
 
     def iteritems(self, ColumnFamilyHandle column_family=None, *args, **kwargs):
+        self.check_open()
         cdef options.ReadOptions opts
         cdef ItemsIterator it
         cdef db.ColumnFamilyHandle* cf_handle = self.db.DefaultColumnFamily()
@@ -2179,6 +2222,7 @@ cdef class DB(object):
         return it
 
     def iterskeys(self, column_families, *args, **kwargs):
+        self.check_open()
         cdef vector[db.Iterator*] iters
         iters.resize(len(column_families))
         cdef options.ReadOptions opts
@@ -2204,6 +2248,7 @@ cdef class DB(object):
         return ret
 
     def itersvalues(self, column_families, *args, **kwargs):
+        self.check_open()
         cdef vector[db.Iterator*] iters
         iters.resize(len(column_families))
         cdef options.ReadOptions opts
@@ -2228,6 +2273,7 @@ cdef class DB(object):
         return ret
 
     def iterskeys(self, column_families, *args, **kwargs):
+        self.check_open()
         cdef vector[db.Iterator*] iters
         iters.resize(len(column_families))
         cdef options.ReadOptions opts
@@ -2257,6 +2303,7 @@ cdef class DB(object):
         return Snapshot(self)
 
     def get_property(self, prop, ColumnFamilyHandle column_family=None):
+        self.check_open()
         cdef string value
         cdef Slice c_prop = bytes_to_slice(prop)
         cdef cpp_bool ret = False
@@ -2273,6 +2320,7 @@ cdef class DB(object):
             return None
 
     def get_live_files_metadata(self):
+        self.check_open()
         cdef vector[db.LiveFileMetaData] metadata
 
         with nogil:
@@ -2294,6 +2342,7 @@ cdef class DB(object):
         return ret
 
     def get_column_family_meta_data(self, ColumnFamilyHandle column_family=None):
+        self.check_open()
         cdef db.ColumnFamilyMetaData metadata
 
         cdef db.ColumnFamilyHandle* cf_handle = self.db.DefaultColumnFamily()
@@ -2309,6 +2358,7 @@ cdef class DB(object):
         }
 
     def compact_range(self, begin=None, end=None, ColumnFamilyHandle column_family=None, **py_options):
+        self.check_open()
         cdef options.CompactRangeOptions c_options
 
         c_options.change_level = py_options.get('change_level', False)
@@ -2364,8 +2414,9 @@ cdef class DB(object):
         # TODO: Is this really effiencet ?
         return locals()
 
-    cdef options.ReadOptions build_read_opts(self, dict py_opts):
+    cdef options.ReadOptions build_read_opts(self, dict py_opts) except *:
         cdef options.ReadOptions opts
+        cdef Snapshot read_snapshot
         cdef Slice iterate_lower_bound
         cdef Slice iterate_upper_bound
 
@@ -2376,7 +2427,12 @@ cdef class DB(object):
         opts.auto_prefix_mode = py_opts['auto_prefix_mode']
 
         if py_opts['snapshot'] is not None:
-            opts.snapshot = (<Snapshot?>(py_opts['snapshot'])).ptr
+            read_snapshot = <Snapshot?>py_opts['snapshot']
+            if read_snapshot.ptr == NULL:
+                raise ValueError('Snapshot is closed')
+            if read_snapshot.db is not self:
+                raise ValueError('Snapshot belongs to another database')
+            opts.snapshot = read_snapshot.ptr
 
         if py_opts['read_tier'] == "all":
             opts.read_tier = options.kReadAllTier
@@ -2395,6 +2451,7 @@ cdef class DB(object):
             return self.opts
 
     def create_column_family(self, bytes name, ColumnFamilyOptions copts):
+        self.check_open()
         cdef db.ColumnFamilyHandle* cf_handle
         cdef Status st
         cdef string c_name = name
@@ -2418,6 +2475,7 @@ cdef class DB(object):
         return handle.weakref
 
     def drop_column_family(self, ColumnFamilyHandle weak_handle not None):
+        self.check_open()
         cdef db.ColumnFamilyHandle* cf_handle
         cdef ColumnFamilyOptions copts
         cdef Status st
@@ -2437,6 +2495,7 @@ cdef class DB(object):
             copts.in_use = False
 
     def write_batch(self, py_bool disable_wal = False, py_bool sync = False) -> RocksDBWriteBatch:
+        self.check_open()
         return RocksDBWriteBatch(self, sync=sync, disable_wal=disable_wal)
 
 
@@ -2466,39 +2525,59 @@ def list_column_families(db_name, Options opts):
 cdef class Snapshot(object):
     cdef const snapshot.Snapshot* ptr
     cdef DB db
+    cdef object __weakref__
 
     def __cinit__(self, DB db):
         self.db = db
         self.ptr = NULL
+        db.check_open()
+        db.snapshots.add(self)
         with nogil:
             self.ptr = db.db.GetSnapshot()
 
     def __dealloc__(self):
+        self.release()
+
+    cdef void release(self):
         if not self.ptr == NULL:
             with nogil:
                 self.db.db.ReleaseSnapshot(self.ptr)
+            self.ptr = NULL
 
 
+@cython.no_gc_clear
 @cython.internal
 cdef class BaseIterator(object):
     cdef iterator.Iterator* ptr
     cdef DB db
     cdef ColumnFamilyHandle handle
+    cdef object __weakref__
 
     def __cinit__(self, DB db, ColumnFamilyHandle handle = None):
         self.db = db
         self.ptr = NULL
         self.handle = handle
+        db.check_open()
+        db.iterators.add(self)
 
     def __dealloc__(self):
+        self.release()
+
+    cdef void release(self):
         if not self.ptr == NULL:
             with nogil:
                 del self.ptr
+            self.ptr = NULL
+
+    cdef void check_open(self) except *:
+        if self.ptr == NULL or self.db.closing:
+            raise ValueError('Iterator is closed')
 
     def __iter__(self):
         return self
 
     def __next__(self):
+        self.check_open()
         if not self.ptr.Valid():
             raise StopIteration()
 
@@ -2509,6 +2588,7 @@ cdef class BaseIterator(object):
         return ret
 
     def get(self):
+        self.check_open()
         cdef object ret = self.get_ob()
         return ret
 
@@ -2517,22 +2597,26 @@ cdef class BaseIterator(object):
         return ReversedIterator(self)
 
     cpdef seek_to_first(self):
+        self.check_open()
         with nogil:
             self.ptr.SeekToFirst()
         check_status(self.ptr.status())
 
     cpdef seek_to_last(self):
+        self.check_open()
         with nogil:
             self.ptr.SeekToLast()
         check_status(self.ptr.status())
 
     cpdef seek(self, key):
+        self.check_open()
         cdef Slice c_key = bytes_to_slice(key)
         with nogil:
             self.ptr.Seek(c_key)
         check_status(self.ptr.status())
 
     cpdef seek_for_prev(self, key):
+        self.check_open()
         cdef Slice c_key = bytes_to_slice(key)
         with nogil:
             self.ptr.SeekForPrev(c_key)
@@ -2603,6 +2687,7 @@ cdef class ReversedIterator(object):
         return self.it
 
     def __next__(self):
+        self.it.check_open()
         if not self.it.ptr.Valid():
             raise StopIteration()
 
@@ -2634,6 +2719,7 @@ cdef class BackupEngine(object):
                 del self.engine
 
     def create_backup(self, DB db, flush_before_backup=False):
+        db.check_open()
         cdef Status st
         cdef cpp_bool c_flush_before_backup
 

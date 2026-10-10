@@ -49,6 +49,17 @@ column families, compressed SST files, WAL entries, and integer merge operands.
 It closes and reopens the database, applies a saved serialized write batch, then
 checks updates, deletes, iteration order, and merged values.
 
+Cleanup regression tests run in child processes with a 30-second timeout per
+case, so a native crash is reported without terminating pytest. They keep
+iterators and snapshots alive across explicit database close, retain an error
+traceback containing an iterator, and check that closed resources raise Python
+errors. Iterator cases cover primary, read-only and secondary databases,
+column families, reverse iteration and bounded iteration. Reopening checks
+both saved data and release of the database lock; automatic cleanup, callback
+reference cycles and reuse of options are also exercised. These tests do not
+cover closing concurrently with database operations; callers must synchronize
+that themselves.
+
 After both wheel builds, `test-compatibility.sh` uses those exact wheels in fresh,
 network-isolated containers. Python 3.9 creates a database, Python 3.13 verifies
 and updates it, and Python 3.9 verifies the result. The reverse direction runs as
