@@ -1,0 +1,4 @@
+auditwheel==6.4.2
+packaging==25.0
+patchelf==0.17.2.4
+pyelftools==0.32

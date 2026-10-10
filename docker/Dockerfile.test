@@ -11,16 +11,34 @@ COPY src/rocksdb ./src/rocksdb
 ARG JOBS=2
 RUN make JOBS="$JOBS"
 
-FROM python${PYTHON_VERSION} AS test
+FROM python${PYTHON_VERSION} AS wheel
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 COPY docker/test-requirements.txt /opt/test-requirements.txt
 RUN python -m pip install --no-cache-dir -r /opt/test-requirements.txt
 WORKDIR /opt/lbry-rocksdb
 COPY --from=native /opt/lbry-rocksdb/src/rocksdb ./src/rocksdb
-COPY setup.py setup.cfg pyproject.toml MANIFEST.in README.md ./
+COPY setup.py setup.cfg pyproject.toml MANIFEST.in README.md LICENSE.md ./
 COPY rocksdb ./rocksdb
-RUN --network=none python -m pip wheel --no-index --no-build-isolation --no-deps --wheel-dir /wheels . \
-    && python -m pip install --no-index --no-deps /wheels/*.whl \
+RUN --network=none python -m pip wheel --no-index --no-build-isolation --no-deps --wheel-dir /unrepaired-wheels .
+
+FROM python313 AS audit
+COPY docker/audit-requirements.txt /opt/audit-requirements.txt
+RUN python -m pip install --disable-pip-version-check --no-cache-dir -r /opt/audit-requirements.txt
+COPY --from=wheel /unrepaired-wheels /unrepaired-wheels
+ARG PYTHON_VERSION
+RUN --network=none case "$PYTHON_VERSION" in \
+        39) platform=manylinux_2_31_x86_64 ;; \
+        313) platform=manylinux_2_35_x86_64 ;; \
+        *) exit 1 ;; \
+    esac \
+    && auditwheel show /unrepaired-wheels/*.whl > /wheel-audit.txt \
+    && auditwheel repair --plat "$platform" --only-plat --wheel-dir /wheels /unrepaired-wheels/*.whl \
+    && auditwheel show /wheels/*.whl >> /wheel-audit.txt
+
+FROM wheel AS test
+COPY --from=audit /wheels /wheels
+COPY --from=audit /wheel-audit.txt /wheel-audit.txt
+RUN --network=none python -m pip install --no-index --no-deps /wheels/*.whl \
     && python -m pip check
 
 # Run outside the checkout so imports exercise the installed wheel.
