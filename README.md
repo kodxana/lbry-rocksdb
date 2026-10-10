@@ -7,10 +7,12 @@ the Python import remains `rocksdb`.
 The `python-rocksdb` and `pyrocksdb` packages haven't been updated in a long time - this repo is a fork of python-rocksdb with many of the PRs to it merged, and with [bunch of updates and improvements](https://github.com/iFA88/python-rocksdb) from @iFA88 and @mosquito.
 
 
-### Release status
+### Install a release
 
-Version 0.8.3 is being prepared for the first `lbry-rocksdb-ng` release.
-Until it is published, use the source build below or a tested CI wheel.
+Version 0.8.3 is available from [GitHub Releases](https://github.com/kodxana/lbry-rocksdb/releases/tag/v0.8.3).
+Download the wheel matching your interpreter and verify it against the release's
+`SHA256SUMS` before installing it. See [installation instructions](docs/releases.md#installing-a-released-wheel)
+for the exact commands, or use the source build below.
 `pip install lbry-rocksdb` still selects LBRY Inc's older package.
 
 The release wheels target Linux x86-64 with standard CPython 3.9 or 3.13.
