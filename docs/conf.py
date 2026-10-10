@@ -179,7 +179,7 @@ html_static_path = ['_static']
 #html_file_suffix = None
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'lbry-rocksdbdoc'
+htmlhelp_basename = 'lbry-rocksdb-ng-doc'
 
 
 # -- Options for LaTeX output ---------------------------------------------
@@ -199,7 +199,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  ('index', 'lbry-rocksdb.tex', u'lbry-rocksdb Documentation',
+  ('index', 'lbry-rocksdb-ng.tex', u'lbry-rocksdb-ng Documentation',
    u'sh', 'manual'),
 ]
 
@@ -229,7 +229,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'lbry-rocksdb', u'python-rocksdb Documentation',
+    ('index', 'lbry-rocksdb-ng', u'lbry-rocksdb-ng Documentation',
      [u'sh'], 1)
 ]
 
@@ -243,8 +243,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  ('index', 'lbry-rocksdb', u'lbry-rocksdb Documentation',
-   u'sh', 'lbry-rocksdb', 'One line description of project.',
+  ('index', 'lbry-rocksdb-ng', u'lbry-rocksdb-ng Documentation',
+   u'sh', 'lbry-rocksdb-ng', 'Community-maintained Python bindings for RocksDB.',
    'Miscellaneous'),
 ]
 

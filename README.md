@@ -1,15 +1,17 @@
-## lbry-rocksdb-ng
+# lbry-rocksdb-ng
 
-Maintained fork of `lbry-rocksdb`. The distribution name is `lbry-rocksdb-ng`;
-the Python import remains `rocksdb`.
+A community-maintained fork of [lbry-rocksdb](https://github.com/lbryio/lbry-rocksdb), originally maintained by LBRY Inc. This project is maintained independently of LBRY Inc.; its changes and releases are community work, not official LBRY Inc. releases. Credit and license notices for the original authors are preserved.
 
-### Note
-The `python-rocksdb` and `pyrocksdb` packages haven't been updated in a long time - this repo is a fork of python-rocksdb with many of the PRs to it merged, and with [bunch of updates and improvements](https://github.com/iFA88/python-rocksdb) from @iFA88 and @mosquito.
+The repository and distribution name are `lbry-rocksdb-ng`; the Python import remains `rocksdb`. The native engine remains RocksDB 6.25.3.
+
+### Origins
+
+This binding descends from `python-rocksdb` and `pyrocksdb`, including [updates and improvements](https://github.com/iFA88/python-rocksdb) from @iFA88 and @mosquito and the LBRY Inc. fork.
 
 
 ### Install a release
 
-Version 0.8.3 is available from [GitHub Releases](https://github.com/kodxana/lbry-rocksdb/releases/tag/v0.8.3).
+Version 0.8.3 is available from [GitHub Releases](https://github.com/kodxana/lbry-rocksdb-ng/releases/tag/v0.8.3).
 Download the wheel matching your interpreter and verify it against the release's
 `SHA256SUMS` before installing it. See [installation instructions](docs/releases.md#installing-a-released-wheel)
 for the exact commands, or use the source build below.
@@ -27,8 +29,8 @@ new distribution name; installing it does not satisfy `lbry-rocksdb==0.8.2`.
 
 ### Install for development / from source
     sudo apt install build-essential binutils
-    git clone https://github.com/kodxana/lbry-rocksdb.git
-    cd lbry-rocksdb
+    git clone https://github.com/kodxana/lbry-rocksdb-ng.git
+    cd lbry-rocksdb-ng
     git submodule update --init --recursive
     python -m pip install -r docker/test-requirements.txt
     make JOBS=2
@@ -52,3 +54,14 @@ cross-version persistence checks, and limits of these test wheels.
     >>> db.put(b'a', b'data')
     >>> print(db.get(b'a'))
     b'data'
+
+### Contributing and contact
+
+Report bugs and propose focused changes in [this repository](https://github.com/kodxana/lbry-rocksdb-ng/issues). Include a reproducer and the relevant [test results](docs/testing.md).
+The fork is maintained by [@kodxana](https://github.com/kodxana) and community contributors. For suspected vulnerabilities, arrange private disclosure before sharing details; LBRY Inc. email addresses are not support contacts for this fork.
+
+Related community projects: [LBRY SDK NG](https://github.com/kodxana/lbry-sdk-ng) and [LBRY Hub NG](https://github.com/kodxana/lbry-hub-ng).
+
+### License
+
+The Python binding retains its [BSD license](LICENSE.md). Bundled native libraries retain their own licenses, included with the wheels.
